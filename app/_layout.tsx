@@ -1,24 +1,18 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+// app/_layout.tsx
+import { Amplify } from "aws-amplify";
+import { Stack } from "expo-router";
+import config from "../src/amplifyconfiguration.json"; // make sure path is correct
+import { AuthProvider } from "./AuthContext";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+console.log("Amplify config loaded:", config); // confirm this logs in your console
+Amplify.configure(config);
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
+  console.log("Using Cognito Pool ID:", config.aws_user_pools_id);
+  
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <AuthProvider>
+      <Stack />
+    </AuthProvider>
   );
 }
