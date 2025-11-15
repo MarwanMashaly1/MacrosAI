@@ -1,4 +1,6 @@
-import outputs from "@/amplify_outputs.json";
+// IMPORTANT: Import polyfills FIRST before anything else
+import "../polyfills";
+
 import { AuthProvider } from "@/components/AuthProvider";
 import {
   DarkTheme,
@@ -8,15 +10,49 @@ import {
 import { Amplify } from "aws-amplify";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-// Configure Amplify
-Amplify.configure(outputs);
+// Amplify Configuration for Expo Go (Web-compatible)
+const amplifyConfig = {
+  Auth: {
+    Cognito: {
+      userPoolId: "us-east-2_yHAaqYBhL",
+      userPoolClientId: "2vkmvdsvfmf57ceu0m30oc56v9",
+      signUpVerificationMethod: "code",
+      loginWith: {
+        email: true,
+      },
+      userAttributes: {
+        name: {
+          required: true,
+        },
+        email: {
+          required: true,
+        },
+      },
+      passwordFormat: {
+        minLength: 6,
+        requireLowercase: false,
+        requireUppercase: false,
+        requireNumbers: false,
+        requireSpecialCharacters: false,
+      },
+    },
+  },
+};
+
+console.log("✅ Amplify config:", JSON.stringify(amplifyConfig, null, 2));
+
+try {
+  Amplify.configure(amplifyConfig);
+  console.log("✅ Amplify configured successfully for Expo Go");
+} catch (error) {
+  console.error("❌ Amplify configuration failed:", error);
+}
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  initialRouteName: "welcome", // Changed from "index" to fix warning
 };
 
 export default function RootLayout() {
@@ -26,14 +62,10 @@ export default function RootLayout() {
     <AuthProvider>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <Stack>
-          {/* Public Routes - No Auth Required */}
+          {/* Auth Routes */}
           <Stack.Screen name="welcome" options={{ headerShown: false }} />
           <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
           <Stack.Screen name="auth/signin" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="auth/confirm-signup"
-            options={{ headerShown: false }}
-          />
           <Stack.Screen
             name="auth/forgot-password"
             options={{ headerShown: false }}
@@ -43,12 +75,8 @@ export default function RootLayout() {
             options={{ headerShown: false }}
           />
 
-          {/* Protected Routes - Auth Required */}
+          {/* Protected Routes */}
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="modal"
-            options={{ presentation: "modal", title: "Modal" }}
-          />
           <Stack.Screen name="identify" options={{ headerShown: false }} />
           <Stack.Screen name="results" options={{ headerShown: false }} />
           <Stack.Screen
