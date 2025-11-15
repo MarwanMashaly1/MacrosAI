@@ -1,14 +1,15 @@
 // app/_layout.tsx
 import { Amplify } from "aws-amplify";
 import { Stack } from "expo-router";
-import config from "../src/amplifyconfiguration.json"; // make sure path is correct
+// @ts-ignore
+import awsExports from "../src/aws-exports";
 import { AuthProvider } from "./AuthContext";
 
-console.log("Amplify config loaded:", config); // confirm this logs in your console
-Amplify.configure(config);
+console.log("Amplify config loaded:", awsExports); // confirm this logs in your console
+Amplify.configure(awsExports);
 
 export default function RootLayout() {
-  console.log("Using Cognito Pool ID:", config.aws_user_pools_id);
+  console.log("Using Cognito Pool ID:", awsExports.aws_user_pools_id);
   
   return (
     <AuthProvider>
