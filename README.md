@@ -20,10 +20,11 @@ A React Native app with AWS Amplify backend for macro tracking and meal manageme
 
 ### Installation
 
-1. Clone the repository
+1. Clone the repository and checkout the auth branch
    ```bash
    git clone https://github.com/MarwanMashaly1/MacrosAI.git
    cd MacrosAI
+   git checkout auth
    ```
 
 2. Install dependencies
@@ -35,15 +36,21 @@ A React Native app with AWS Amplify backend for macro tracking and meal manageme
    ```bash
    amplify pull --appId d2xeviacwqqffq --envName dev
    ```
+   
+   **Note**: This step is crucial! It generates the `aws-exports.js` configuration file that the app needs to connect to AWS services. Without this file, the app won't work.
 
-4. Amplify will ask:
+4. Amplify will prompt you with these questions:
    ```bash
-   Do you want to use an existing environment? Yes
-   Choose your default editor: <whatever>
-   Choose your type of app: javascript
-   Where is your src directory: src
-   Where is your dist directory: dist (or build)
-   Do you want to generate code for your models? No
+   ? Select the authentication method you want to use: AWS profile
+   ? Please choose the profile you want to use: nbeau
+   ? Choose your default editor: Visual Studio Code
+   ? Choose the type of app that you're building: javascript
+   ? What javascript framework are you using: react-native
+   ? Source Directory Path: src
+   ? Distribution Directory Path: /
+   ? Build Command: npm run-script build
+   ? Start Command: npm run-script start
+   ? Do you plan on modifying this backend? No (unless you're a core developer)
    ```
 
 5. Start the app
