@@ -1,4 +1,4 @@
-import { storageService } from "@/services/storageService";
+import { FoodEntry, storageService } from "@/services/storageService";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -9,43 +9,173 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
 export default function ResultsScreen() {
-  const params = useLocalSearchParams();
-  const entryId = params.entryId as string;
+  const params = useLocalSearchParams<{
+    imageUri?: string;
+    analysisResult?: string;
+    entryId?: string;
+    pastEntryTimestamp?: string;
+  }>();
 
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [entry, setEntry] = useState<any>(null);
+  const [isNewEntry, setIsNewEntry] = useState(false);
+  const [selectedMealType, setSelectedMealType] = useState<MealType>("lunch");
+  const [entryNotes, setEntryNotes] = useState("");
 
   useEffect(() => {
-    if (entryId) {
-      loadEntry();
-    }
-  }, [entryId]);
+    loadData();
+  }, []);
 
-  const loadEntry = async () => {
+  const loadData = async () => {
     try {
-      const entries = await storageService.getFoodEntries();
-      const foundEntry = entries.find((e) => e.id === entryId);
-      setEntry(foundEntry);
+      setLoading(true);
+
+      // Check if this is an existing entry (from history)
+      if (params.entryId) {
+        await loadExistingEntry(params.entryId);
+        setIsNewEntry(false);
+      }
+      // Check if this is a new entry (from identify screen)
+      else if (params.analysisResult) {
+        loadNewEntry();
+        setIsNewEntry(true);
+      } else {
+        Alert.alert("Error", "No entry data found");
+        router.back();
+      }
     } catch (error) {
-      Alert.alert("Error", "Failed to load food entry");
-      console.error(error);
+      console.error("Error loading data:", error);
+      Alert.alert("Error", "Failed to load entry data");
+      router.back();
     } finally {
       setLoading(false);
     }
   };
 
+  const loadExistingEntry = async (entryId: string) => {
+    const entries = await storageService.getFoodEntries();
+    const foundEntry = entries.find((e) => e.id === entryId);
+
+    if (!foundEntry) {
+      throw new Error("Entry not found");
+    }
+
+    setEntry(foundEntry);
+    setSelectedMealType(foundEntry.mealType || "lunch");
+    setEntryNotes(foundEntry.notes || "");
+  };
+
+  const loadNewEntry = () => {
+    try {
+      const analysisResult = JSON.parse(params.analysisResult!);
+
+      // Create entry object from analysis result
+      const newEntry = {
+        imageUri: params.imageUri,
+        analysis: {
+          totalCalories: analysisResult.totalCalories,
+          confidence: analysisResult.confidence,
+          foodItems: analysisResult.foodItems,
+          macronutrients: analysisResult.macronutrients || {
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0,
+          },
+          nutritionSummary: analysisResult.nutritionSummary || {
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0,
+          },
+        },
+        isManual: false,
+      };
+
+      setEntry(newEntry);
+
+      // Auto-select meal type based on time of day
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 11) {
+        setSelectedMealType("breakfast");
+      } else if (hour >= 11 && hour < 15) {
+        setSelectedMealType("lunch");
+      } else if (hour >= 15 && hour < 21) {
+        setSelectedMealType("dinner");
+      } else {
+        setSelectedMealType("snack");
+      }
+    } catch (error) {
+      console.error("Error parsing analysis result:", error);
+      throw error;
+    }
+  };
+
+  const handleSaveEntry = async () => {
+    if (!entry) return;
+
+    try {
+      setIsSaving(true);
+
+      const timestamp = params.pastEntryTimestamp
+        ? parseInt(params.pastEntryTimestamp)
+        : Date.now();
+
+      const entryData: Omit<FoodEntry, "id"> = {
+        timestamp,
+        imageUri: entry.imageUri || "",
+        analysis: {
+          totalCalories: entry.analysis.totalCalories,
+          confidence: entry.analysis.confidence,
+          foodItems: entry.analysis.foodItems,
+          macronutrients: entry.analysis.macronutrients,
+          nutritionSummary: entry.analysis.nutritionSummary,
+        },
+        mealType: selectedMealType,
+        notes: entryNotes.trim() || undefined,
+        isManual: entry.isManual || false,
+      };
+
+      await storageService.saveFoodEntry(entryData);
+
+      Alert.alert("Success", "Food entry saved successfully!", [
+        {
+          text: "OK",
+          onPress: () => {
+            router.replace("/(tabs)/history");
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error("Error saving entry:", error);
+      Alert.alert("Error", "Failed to save entry. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFinish = () => {
-    router.push("/(tabs)/history");
+    if (isNewEntry) {
+      // Save the entry first
+      handleSaveEntry();
+    } else {
+      // Just navigate to history
+      router.replace("/(tabs)/history");
+    }
   };
 
   const goHome = () => {
-    router.push("/(tabs)/index");
+    router.replace("/(tabs)"); // Change from "/(tabs)/index" to "/(tabs)"
   };
 
   if (loading) {
@@ -76,29 +206,75 @@ export default function ResultsScreen() {
     );
   }
 
-  const { analysis, imageUri } = entry;
-  const { totalCalories, macronutrients, foodItems } = analysis;
+  const { analysis, imageUri, isManual } = entry;
+  const { totalCalories, foodItems } = analysis;
+  const macronutrients = analysis.macronutrients ||
+    analysis.nutritionSummary || {
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+    };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}>
-        {/* Header with Success Icon */}
-        <View style={styles.header}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark" size={32} color="#ffffff" />
-          </View>
-          <Text style={styles.title}>Analysis Complete!</Text>
-          <Text style={styles.subtitle}>
-            Your meal has been logged successfully
-          </Text>
+      {/* Header with Success Icon */}
+      <View style={styles.header}>
+        <View style={styles.successIcon}>
+          <Ionicons name="checkmark" size={32} color="#ffffff" />
         </View>
+        <Text style={styles.title}>
+          {isNewEntry ? "Analysis Complete!" : "Entry Details"}
+        </Text>
+        <Text style={styles.subtitle}>
+          {isNewEntry
+            ? "Review and save your meal"
+            : "Your saved nutrition information"}
+        </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Manual Entry Badge */}
+        {isManual && (
+          <View style={styles.manualBadge}>
+            <Ionicons name="create" size={16} color="#10B981" />
+            <Text style={styles.manualBadgeText}>Manual Entry</Text>
+          </View>
+        )}
 
         {/* Food Image */}
         {imageUri && (
           <View style={styles.imageContainer}>
             <Image source={{ uri: imageUri }} style={styles.image} />
+          </View>
+        )}
+
+        {/* Meal Type Selection (only for new entries) */}
+        {isNewEntry && (
+          <View style={styles.mealTypeSection}>
+            <Text style={styles.sectionTitle}>Meal Type</Text>
+            <View style={styles.mealTypeButtons}>
+              {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
+                (type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.mealTypeButton,
+                      selectedMealType === type && styles.mealTypeButtonActive,
+                    ]}
+                    onPress={() => setSelectedMealType(type)}>
+                    <Text
+                      style={[
+                        styles.mealTypeButtonText,
+                        selectedMealType === type &&
+                          styles.mealTypeButtonTextActive,
+                      ]}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )}
+            </View>
           </View>
         )}
 
@@ -140,9 +316,11 @@ export default function ResultsScreen() {
 
         {/* Food Items Breakdown */}
         <View style={styles.itemsSection}>
-          <Text style={styles.sectionTitle}>Food Items</Text>
+          <Text style={styles.sectionTitle}>
+            Food Items ({foodItems?.length || 0})
+          </Text>
 
-          {foodItems.map((item: any, index: number) => (
+          {foodItems?.map((item: any, index: number) => (
             <View key={index} style={styles.itemCard}>
               <View style={styles.itemHeader}>
                 <Text style={styles.itemName}>{item.name}</Text>
@@ -159,35 +337,64 @@ export default function ResultsScreen() {
                 </Text>
               </View>
 
-              <View style={styles.itemMacros}>
-                <View style={styles.itemMacro}>
-                  <Text style={styles.itemMacroLabel}>Protein</Text>
-                  <Text style={styles.itemMacroValue}>
-                    {Math.round(item.macronutrients.protein)}g
-                  </Text>
+              {item.macronutrients && (
+                <View style={styles.itemMacros}>
+                  <View style={styles.itemMacro}>
+                    <Text style={styles.itemMacroLabel}>Protein</Text>
+                    <Text style={styles.itemMacroValue}>
+                      {Math.round(item.macronutrients.protein)}g
+                    </Text>
+                  </View>
+                  <View style={styles.itemMacro}>
+                    <Text style={styles.itemMacroLabel}>Carbs</Text>
+                    <Text style={styles.itemMacroValue}>
+                      {Math.round(item.macronutrients.carbs)}g
+                    </Text>
+                  </View>
+                  <View style={styles.itemMacro}>
+                    <Text style={styles.itemMacroLabel}>Fat</Text>
+                    <Text style={styles.itemMacroValue}>
+                      {Math.round(item.macronutrients.fat)}g
+                    </Text>
+                  </View>
+                  <View style={styles.itemMacro}>
+                    <Text style={styles.itemMacroLabel}>Fiber</Text>
+                    <Text style={styles.itemMacroValue}>
+                      {Math.round(item.macronutrients.fiber)}g
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.itemMacro}>
-                  <Text style={styles.itemMacroLabel}>Carbs</Text>
-                  <Text style={styles.itemMacroValue}>
-                    {Math.round(item.macronutrients.carbs)}g
-                  </Text>
-                </View>
-                <View style={styles.itemMacro}>
-                  <Text style={styles.itemMacroLabel}>Fat</Text>
-                  <Text style={styles.itemMacroValue}>
-                    {Math.round(item.macronutrients.fat)}g
-                  </Text>
-                </View>
-                <View style={styles.itemMacro}>
-                  <Text style={styles.itemMacroLabel}>Fiber</Text>
-                  <Text style={styles.itemMacroValue}>
-                    {Math.round(item.macronutrients.fiber)}g
-                  </Text>
-                </View>
-              </View>
+              )}
             </View>
           ))}
         </View>
+
+        {/* Notes Section (only for new entries) */}
+        {isNewEntry && (
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Notes (Optional)</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="Add notes about this meal..."
+              value={entryNotes}
+              onChangeText={setEntryNotes}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholderTextColor="#9ca3af"
+            />
+          </View>
+        )}
+
+        {/* Display notes for existing entries */}
+        {!isNewEntry && entry.notes && (
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Notes</Text>
+            <View style={styles.notesDisplay}>
+              <Text style={styles.notesDisplayText}>{entry.notes}</Text>
+            </View>
+          </View>
+        )}
 
         {/* Confidence Badge */}
         <View style={styles.confidenceContainer}>
@@ -198,21 +405,43 @@ export default function ResultsScreen() {
             </Text>
           </View>
           <Text style={styles.confidenceNote}>
-            Higher confidence means more accurate nutrition estimates
+            {analysis.confidence >= 90
+              ? "High confidence - very accurate estimates"
+              : analysis.confidence >= 70
+              ? "Good confidence - reliable estimates"
+              : "Moderate confidence - estimates may vary"}
           </Text>
         </View>
       </ScrollView>
 
       {/* Action Buttons Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={goHome}>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={goHome}
+          disabled={isSaving}>
           <Ionicons name="home" size={20} color="#10B981" />
           <Text style={styles.secondaryButtonText}>Go Home</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.finishButton} onPress={handleFinish}>
-          <Ionicons name="time" size={20} color="white" />
-          <Text style={styles.finishButtonText}>View History</Text>
+        <TouchableOpacity
+          style={[styles.finishButton, isSaving && styles.finishButtonDisabled]}
+          onPress={handleFinish}
+          disabled={isSaving}>
+          {isSaving ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <>
+              <Ionicons
+                name={isNewEntry ? "checkmark" : "time"}
+                size={20}
+                color="white"
+              />
+              <Text style={styles.finishButtonText}>
+                {isNewEntry ? "Save Entry" : "View History"}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -224,11 +453,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  content: {
     padding: 20,
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -274,7 +501,11 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
   },
   successIcon: {
     width: 64,
@@ -286,31 +517,81 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 24,
+    fontWeight: "700",
     color: "#1f2937",
     marginBottom: 8,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
+  },
+  manualBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#10B98115",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginBottom: 16,
+    gap: 6,
+  },
+  manualBadgeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#10B981",
   },
   imageContainer: {
     borderRadius: 12,
     overflow: "hidden",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   image: {
     width: "100%",
     height: 200,
   },
+  mealTypeSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 12,
+  },
+  mealTypeButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  mealTypeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  mealTypeButtonActive: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  mealTypeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  mealTypeButtonTextActive: {
+    color: "#ffffff",
+  },
   summaryCard: {
     backgroundColor: "white",
     borderRadius: 16,
     padding: 24,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "#e5e7eb",
     shadowColor: "#000",
@@ -364,13 +645,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   itemsSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   itemCard: {
     backgroundColor: "white",
@@ -430,6 +705,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1f2937",
   },
+  notesSection: {
+    marginBottom: 20,
+  },
+  notesInput: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: "#1f2937",
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  notesDisplay: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  notesDisplayText: {
+    fontSize: 16,
+    color: "#1f2937",
+    lineHeight: 24,
+  },
   confidenceContainer: {
     backgroundColor: "white",
     borderRadius: 12,
@@ -487,11 +788,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
+    gap: 8,
+  },
+  finishButtonDisabled: {
+    opacity: 0.6,
   },
   finishButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "white",
-    marginLeft: 8,
   },
 });

@@ -1,8 +1,11 @@
+import { AddEntryModal } from "@/components/add-entry-modal";
 import { FoodEntry, storageService } from "@/services/storageService";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router"; // Add this import
 import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -44,6 +47,7 @@ export default function HistoryScreen() {
   });
   const [dayTotals, setDayTotals] = useState<DayTotal[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   React.useEffect(() => {
     loadHistoryData();
@@ -172,22 +176,59 @@ export default function HistoryScreen() {
   };
 
   const deleteEntry = async (entryId: string) => {
-    try {
-      await storageService.deleteFoodEntry(entryId);
-      await loadHistoryData();
-    } catch (error) {
-      console.error("Error deleting entry:", error);
-    }
+    Alert.alert(
+      "Delete Entry",
+      "Are you sure you want to delete this food entry?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await storageService.deleteFoodEntry(entryId);
+              await loadHistoryData();
+            } catch (error) {
+              console.error("Error deleting entry:", error);
+              Alert.alert("Error", "Failed to delete entry");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Add navigation function
+  const navigateToResults = (entryId: string) => {
+    router.push({
+      pathname: "/results",
+      params: {
+        entryId: entryId,
+      },
+    });
   };
 
   const renderFoodEntry = ({ item }: { item: FoodEntry }) => (
-    <View style={styles.entryCard}>
+    <TouchableOpacity
+      style={styles.entryCard}
+      onPress={() => navigateToResults(item.id)}
+      activeOpacity={0.7}>
       <View style={styles.entryHeader}>
         <Image source={{ uri: item.imageUri }} style={styles.entryImage} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.entryFood}>
-            {item.analysis.foodItems[0]?.name || "Food Item"}
-          </Text>
+          <View style={styles.entryTitleRow}>
+            <Text style={styles.entryFood}>
+              {item.analysis.foodItems[0]?.name || "Food Item"}
+            </Text>
+            {item.isManual && (
+              <View style={styles.manualEntryBadge}>
+                <Ionicons name="create" size={12} color="#10B981" />
+              </View>
+            )}
+          </View>
           <Text style={styles.entryTime}>
             {formatDateRelative(new Date(item.timestamp))} •{" "}
             {formatTime(item.timestamp)}
@@ -207,7 +248,10 @@ export default function HistoryScreen() {
           </Text>
           <TouchableOpacity
             style={styles.deleteButton}
-            onPress={() => deleteEntry(item.id)}>
+            onPress={(e) => {
+              e.stopPropagation(); // Prevent card navigation when delete is pressed
+              deleteEntry(item.id);
+            }}>
             <Ionicons name="trash" size={16} color="#ef4444" />
           </TouchableOpacity>
         </View>
@@ -238,7 +282,13 @@ export default function HistoryScreen() {
           </Text>
         )}
       </View>
-    </View>
+
+      {/* Add visual indicator that card is clickable */}
+      <View style={styles.clickableIndicator}>
+        <Ionicons name="chevron-forward" size={16} color="#10B981" />
+        <Text style={styles.clickableText}>Tap to view details</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   const renderDayTotal = ({ item }: { item: DayTotal }) => (
@@ -399,6 +449,20 @@ export default function HistoryScreen() {
           />
         )}
       </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddModal(true)}
+        activeOpacity={0.8}>
+        <Ionicons name="add" size={28} color="#ffffff" />
+      </TouchableOpacity>
+
+      {/* Add Entry Modal */}
+      <AddEntryModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -535,7 +599,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 100, // Add padding for FAB
   },
   entryCard: {
     backgroundColor: "#ffffff",
@@ -617,6 +681,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  clickableIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+  },
+  clickableText: {
+    fontSize: 12,
+    color: "#10B981",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
   dayTotalCard: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -671,5 +750,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
     paddingHorizontal: 32,
+  },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  entryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  manualEntryBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#10B98115",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

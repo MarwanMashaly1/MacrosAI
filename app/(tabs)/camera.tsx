@@ -972,7 +972,7 @@
 // });
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router"; // Add this import
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -1005,6 +1005,11 @@ interface FoodItem {
 }
 
 export default function CameraTab() {
+  const params = useLocalSearchParams<{ pastEntryTimestamp?: string }>();
+  const pastEntryTimestamp = params.pastEntryTimestamp
+    ? parseInt(params.pastEntryTimestamp)
+    : null;
+
   // State variables
   const [facing, setFacing] = useState<CameraType>("back");
   const [showCamera, setShowCamera] = useState(false);
@@ -1019,29 +1024,27 @@ export default function CameraTab() {
     if (analyzing || !cameraRef.current) return;
 
     try {
-      // STEP 1: Capture the photo. The camera view remains mounted.
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: true,
       });
 
-      // STEP 2: Now that capture is successful, navigate directly to identify screen
       router.push({
         pathname: "/identify",
         params: {
           imageUri: photo.uri,
           base64: photo.base64 || "",
+          // Pass the past entry timestamp if it exists
+          pastEntryTimestamp: pastEntryTimestamp?.toString() || "",
         },
       });
 
-      // STEP 3: Reset camera state
       setShowCamera(false);
       setCapturedImage(null);
       setAnalyzing(false);
     } catch (error) {
       Alert.alert("Error", "Failed to take picture. Please try again.");
       console.error("Camera error:", error);
-      // Ensure we reset state if the capture itself fails
       setAnalyzing(false);
     }
   };
@@ -1061,12 +1064,13 @@ export default function CameraTab() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
 
-        // Navigate directly to identify screen
         router.push({
           pathname: "/identify",
           params: {
             imageUri: asset.uri,
             base64: asset.base64 || "",
+            // Pass the past entry timestamp if it exists
+            pastEntryTimestamp: pastEntryTimestamp?.toString() || "",
           },
         });
       }
@@ -1077,8 +1081,6 @@ export default function CameraTab() {
       setAnalyzing(false);
     }
   };
-
-  // Remove the old handleAnalyzeFood function since we're navigating directly now
 
   const toggleCameraFacing = useCallback(
     () => setFacing((current) => (current === "back" ? "front" : "back")),

@@ -1,5 +1,5 @@
 import { geminiService, IdentifiedItem } from "@/services/geminiService";
-import { FoodItem, storageService } from "@/services/storageService";
+import { FoodItem } from "@/services/storageService";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -17,7 +17,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function IdentifyScreen() {
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    imageUri: string;
+    base64: string;
+    pastEntryTimestamp?: string;
+  }>();
   const imageUri = params.imageUri as string;
   const base64 = params.base64 as string;
 
@@ -44,10 +48,9 @@ export default function IdentifyScreen() {
     }
   };
 
-  // Type-specific update functions for IdentifiedItem properties
   const updateItemText = (
     index: number,
-    field: "name" | "estimated_size" | "quantity", // Added quantity here since it's now a string
+    field: "name" | "estimated_size" | "quantity",
     value: string
   ) => {
     setItems(
@@ -57,7 +60,7 @@ export default function IdentifyScreen() {
 
   const updateItemNumber = (
     index: number,
-    field: "confidence", // Removed quantity since it's now a string
+    field: "confidence",
     value: number
   ) => {
     setItems(
@@ -83,7 +86,6 @@ export default function IdentifyScreen() {
     const newQuantity = Math.max(0.1, currentQuantity + delta);
     const newQuantityString = `${newQuantity.toFixed(1)} ${unit}`;
 
-    // Use updateItemText since quantity is now a string
     updateItemText(index, "quantity", newQuantityString);
   };
 
@@ -99,12 +101,7 @@ export default function IdentifyScreen() {
       confidence: 50,
     };
     setItems([...items, newItem]);
-    setEditingId(items.length); // Start editing the new item
-  };
-
-  // Helper function to safely get numeric value
-  const safeNumber = (value: number | undefined | null): number => {
-    return typeof value === "number" && !isNaN(value) ? value : 0;
+    setEditingId(items.length);
   };
 
   // Convert IdentifiedItem to the format expected by calculateNutrition
@@ -116,6 +113,32 @@ export default function IdentifyScreen() {
     }));
   };
 
+  // Helper function to extract weight number and unit
+  const parseWeight = (weightStr: string): { value: number; unit: string } => {
+    const match = weightStr.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?$/);
+    if (match) {
+      return {
+        value: parseFloat(match[1]),
+        unit: match[2] || "g",
+      };
+    }
+    return { value: 100, unit: "g" };
+  };
+
+  // Helper function to parse quantity
+  const parseQuantity = (
+    quantityStr: string
+  ): { value: number; unit: string } => {
+    const match = quantityStr.match(/^(\d+(?:\.\d+)?)\s*(.+)?$/);
+    if (match) {
+      return {
+        value: parseFloat(match[1]),
+        unit: match[2] || "serving",
+      };
+    }
+    return { value: 1, unit: "serving" };
+  };
+
   const proceedToResults = async () => {
     if (items.length === 0) {
       Alert.alert("No Items", "Please add at least one food item to continue.");
@@ -123,6 +146,8 @@ export default function IdentifyScreen() {
     }
 
     try {
+      setLoading(true);
+
       // Convert IdentifiedItems to the format needed for nutrition calculation
       const nutritionItems = convertToNutritionItems(items);
 
@@ -132,54 +157,71 @@ export default function IdentifyScreen() {
       );
 
       // Create FoodItems from the nutrition analysis
-      const foodItems: FoodItem[] = nutritionAnalysis.foodItems.map((item) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: item.name,
-        calories: item.calories,
-        weight: parseFloat(item.weight.replace(/\D/g, "")) || 100, // Extract number from weight string
-        unit: item.weight.replace(/[\d.]/g, "").trim() || "g", // Extract unit from weight string
-        macronutrients: {
-          protein: item.nutrients?.protein || 0,
-          carbs: item.nutrients?.carbs || 0,
-          fat: item.nutrients?.fat || 0,
-          fiber: item.nutrients?.fiber || 0,
-        },
-        confidence: item.confidence,
-        portion: {
-          amount: parseFloat(
-            nutritionItems.find((ni) => ni.name === item.name)?.quantity || "1"
-          ),
-          unit:
-            nutritionItems
-              .find((ni) => ni.name === item.name)
-              ?.quantity.replace(/[\d.]/g, "")
-              .trim() || "serving",
-        },
-      }));
+      const foodItems: FoodItem[] = nutritionAnalysis.foodItems.map(
+        (item, index) => {
+          const weightInfo = parseWeight(item.weight);
+          const quantityInfo = parseQuantity(
+            nutritionItems.find((ni) => ni.name === item.name)?.quantity ||
+              "1 serving"
+          );
 
-      // Save the food entry - now returns the saved entry with ID
-      const foodEntry = await storageService.saveFoodEntry({
-        imageUri,
-        analysis: {
-          foodItems: foodItems,
-          totalCalories: nutritionAnalysis.totalCalories,
-          confidence: nutritionAnalysis.confidence,
-          macronutrients: nutritionAnalysis.nutritionSummary,
-        },
-        timestamp: Date.now(),
-        mealType: undefined,
-        notes: undefined,
-      });
+          return {
+            id: Math.random().toString(36).substr(2, 9),
+            name: item.name,
+            calories: item.calories,
+            weight: weightInfo.value,
+            unit: weightInfo.unit,
+            macronutrients: {
+              protein: item.nutrients?.protein || 0,
+              carbs: item.nutrients?.carbs || 0,
+              fat: item.nutrients?.fat || 0,
+              fiber: item.nutrients?.fiber || 0,
+            },
+            confidence: item.confidence,
+            portion: {
+              amount: quantityInfo.value,
+              unit: quantityInfo.unit,
+            },
+          };
+        }
+      );
 
-      router.push({
+      // Calculate total macros
+      const totalMacros = foodItems.reduce(
+        (sum, item) => ({
+          protein: sum.protein + (item.macronutrients?.protein || 0),
+          carbs: sum.carbs + (item.macronutrients?.carbs || 0),
+          fat: sum.fat + (item.macronutrients?.fat || 0),
+          fiber: sum.fiber + (item.macronutrients?.fiber || 0),
+        }),
+        { protein: 0, carbs: 0, fat: 0, fiber: 0 }
+      );
+
+      // Create the analysis result object
+      const analysisResult = {
+        foodItems: foodItems,
+        totalCalories: nutritionAnalysis.totalCalories,
+        confidence: nutritionAnalysis.confidence,
+        macronutrients: totalMacros,
+        nutritionSummary: totalMacros,
+      };
+
+      // Navigate to results WITHOUT saving (results screen will handle saving)
+      router.replace({
         pathname: "/results",
         params: {
-          entryId: foodEntry.id,
+          imageUri: params.imageUri,
+          analysisResult: JSON.stringify(analysisResult),
+          pastEntryTimestamp: params.pastEntryTimestamp || "",
         },
       });
     } catch (error) {
-      Alert.alert("Error", "Failed to analyze nutrition information");
-      console.error(error);
+      setLoading(false);
+      Alert.alert(
+        "Error",
+        "Failed to analyze nutrition information. Please try again."
+      );
+      console.error("Nutrition analysis error:", error);
     }
   };
 
@@ -188,9 +230,15 @@ export default function IdentifyScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>Analyzing your food...</Text>
+          <Text style={styles.loadingText}>
+            {items.length > 0
+              ? "Calculating nutrition..."
+              : "Analyzing your food..."}
+          </Text>
           <Text style={styles.loadingSubtext}>
-            Using AI to identify ingredients and calculate nutrition
+            {items.length > 0
+              ? "Getting detailed nutritional information"
+              : "Using AI to identify ingredients"}
           </Text>
         </View>
       </SafeAreaView>
@@ -224,13 +272,7 @@ export default function IdentifyScreen() {
             </Text>
             {items.map((item, index) => {
               // Parse quantity for display
-              const quantityMatch = item.quantity
-                .toString()
-                .match(/^\d+(\.\d+)?/);
-              const quantity = quantityMatch ? parseFloat(quantityMatch[0]) : 1;
-              const unit =
-                item.quantity.toString().replace(/^\d+(\.\d+)?\s*/, "") ||
-                "serving";
+              const quantityInfo = parseQuantity(item.quantity.toString());
 
               return (
                 <View key={index} style={styles.itemCard}>
@@ -265,9 +307,11 @@ export default function IdentifyScreen() {
                         </TouchableOpacity>
                         <View style={styles.quantityDisplay}>
                           <Text style={styles.quantityText}>
-                            {quantity.toFixed(1)}
+                            {quantityInfo.value.toFixed(1)}
                           </Text>
-                          <Text style={styles.unitText}>{unit}</Text>
+                          <Text style={styles.unitText}>
+                            {quantityInfo.unit}
+                          </Text>
                         </View>
                         <TouchableOpacity
                           style={styles.quantityButton}
@@ -288,6 +332,7 @@ export default function IdentifyScreen() {
                           onBlur={() => setEditingId(null)}
                           autoFocus
                           placeholder="Food name"
+                          placeholderTextColor="#9ca3af"
                         />
                       </View>
                     ) : (
@@ -340,7 +385,10 @@ export default function IdentifyScreen() {
               <Text style={styles.retakeButtonText}>Retake Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.continueButton}
+              style={[
+                styles.continueButton,
+                items.length === 0 && styles.continueButtonDisabled,
+              ]}
               onPress={proceedToResults}
               disabled={items.length === 0}>
               <Text style={styles.continueButtonText}>Continue</Text>
@@ -621,6 +669,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: "#10B981",
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#9ca3af",
+    opacity: 0.5,
   },
   continueButtonText: {
     fontSize: 16,
