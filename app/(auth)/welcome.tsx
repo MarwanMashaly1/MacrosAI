@@ -51,7 +51,7 @@ export default function WelcomeScreen() {
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.signUpButton}
-            onPress={() => router.push("/auth/signup")}
+            onPress={() => router.push("/(auth)/signup")} // <-- Corrected Path
             activeOpacity={0.8}>
             <Text style={styles.signUpButtonText}>Get Started</Text>
             <Ionicons name="arrow-forward" size={20} color="#10B981" />
@@ -59,7 +59,7 @@ export default function WelcomeScreen() {
 
           <TouchableOpacity
             style={styles.signInButton}
-            onPress={() => router.push("/auth/signin")}
+            onPress={() => router.push("/(auth)/login")} // <-- Corrected Path
             activeOpacity={0.8}>
             <Text style={styles.signInButtonText}>
               I already have an account

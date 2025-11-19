@@ -145,8 +145,43 @@ export default function IdentifyScreen() {
       return;
     }
 
+    // We now only use the local imageUri.
+    const finalImageUri = imageUri;
+
     try {
-      setLoading(true);
+      const analysisResult: {
+        foodItems: FoodItem[];
+        totalCalories: number;
+        confidence: number;
+        macronutrients: {
+          protein: number;
+          carbs: number;
+          fat: number;
+          fiber: number;
+        };
+        nutritionSummary: {
+          protein: number;
+          carbs: number;
+          fat: number;
+          fiber: number;
+        };
+      } = {
+        foodItems: [],
+        totalCalories: 0,
+        confidence: 0,
+        macronutrients: {
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+        },
+        nutritionSummary: {
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+        },
+      };
 
       // Convert IdentifiedItems to the format needed for nutrition calculation
       const nutritionItems = convertToNutritionItems(items);
@@ -157,7 +192,7 @@ export default function IdentifyScreen() {
       );
 
       // Create FoodItems from the nutrition analysis
-      const foodItems: FoodItem[] = nutritionAnalysis.foodItems.map(
+      analysisResult.foodItems = nutritionAnalysis.foodItems.map(
         (item, index) => {
           const weightInfo = parseWeight(item.weight);
           const quantityInfo = parseQuantity(
@@ -187,7 +222,7 @@ export default function IdentifyScreen() {
       );
 
       // Calculate total macros
-      const totalMacros = foodItems.reduce(
+      const totalMacros = analysisResult.foodItems.reduce(
         (sum, item) => ({
           protein: sum.protein + (item.macronutrients?.protein || 0),
           carbs: sum.carbs + (item.macronutrients?.carbs || 0),
@@ -198,19 +233,16 @@ export default function IdentifyScreen() {
       );
 
       // Create the analysis result object
-      const analysisResult = {
-        foodItems: foodItems,
-        totalCalories: nutritionAnalysis.totalCalories,
-        confidence: nutritionAnalysis.confidence,
-        macronutrients: totalMacros,
-        nutritionSummary: totalMacros,
-      };
+      analysisResult.totalCalories = nutritionAnalysis.totalCalories;
+      analysisResult.confidence = nutritionAnalysis.confidence;
+      analysisResult.macronutrients = totalMacros;
+      analysisResult.nutritionSummary = totalMacros;
 
       // Navigate to results WITHOUT saving (results screen will handle saving)
       router.replace({
         pathname: "/results",
         params: {
-          imageUri: params.imageUri,
+          imageUri: finalImageUri, // <-- This now correctly uses the local URI
           analysisResult: JSON.stringify(analysisResult),
           pastEntryTimestamp: params.pastEntryTimestamp || "",
         },

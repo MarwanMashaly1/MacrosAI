@@ -1,10 +1,10 @@
+import { useAuth } from "@/context/AuthContext";
 import {
   DailyGoals,
   storageService,
   UserProfile,
 } from "@/services/storageService";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -18,17 +18,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SettingsScreen() {
+  const { logout } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dailyGoals, setDailyGoals] = useState<DailyGoals>({
     calories: 2000,
     protein: 150,
-    carbs: 250,
+    carbs: 200,
     fat: 65,
-    fiber: 25,
   });
-  const [apiKey, setApiKey] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingGoals, setIsEditingGoals] = useState(false);
+  const [tempProfile, setTempProfile] = useState<UserProfile | null>(null);
+  const [tempGoals, setTempGoals] = useState<DailyGoals>({ ...dailyGoals });
 
   useEffect(() => {
     loadSettings();
@@ -38,361 +39,334 @@ export default function SettingsScreen() {
     try {
       const profile = await storageService.getUserProfile();
       const goals = await storageService.getDailyGoals();
-      const savedApiKey = await storageService.getGeminiApiKey();
 
       if (profile) {
         setUserProfile(profile);
+        setTempProfile(profile);
+      } else {
+        createDefaultProfile();
       }
+
       if (goals) {
         setDailyGoals(goals);
-      }
-      if (savedApiKey) {
-        setApiKey(savedApiKey);
+        setTempGoals(goals);
       }
     } catch (error) {
       console.error("Error loading settings:", error);
     }
   };
 
-  const saveUserProfile = async () => {
-    if (!userProfile) return;
+  const createDefaultProfile = () => {
+    const newProfile: UserProfile = {
+      name: "",
+      height: 0,
+      weight: 0,
+      age: 0,
+      gender: "male",
+      activityLevel: "moderate",
+      goal: "maintain",
+    };
+    setUserProfile(newProfile);
+    setTempProfile(newProfile);
+  };
 
-    setIsLoading(true);
+  const handleSignOut = async () => {
+    await logout();
+  };
+
+  const saveProfile = async () => {
+    if (!tempProfile) return;
     try {
-      const updatedProfile = {
-        ...userProfile,
-        updatedAt: Date.now(),
-      };
-      await storageService.saveUserProfile(updatedProfile);
-      Alert.alert("Success", "Profile saved successfully!");
+      await storageService.saveUserProfile(tempProfile);
+      setUserProfile(tempProfile);
+      setIsEditingProfile(false);
+      Alert.alert("Success", "Profile updated successfully");
     } catch (error) {
       Alert.alert("Error", "Failed to save profile");
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const saveDailyGoals = async () => {
-    setIsLoading(true);
+  const saveGoals = async () => {
     try {
-      await storageService.saveDailyGoals(dailyGoals);
-      Alert.alert("Success", "Daily goals saved successfully!");
+      await storageService.saveDailyGoals(tempGoals);
+      setDailyGoals(tempGoals);
+      setIsEditingGoals(false);
+      Alert.alert("Success", "Daily goals updated successfully");
     } catch (error) {
-      Alert.alert("Error", "Failed to save daily goals");
-    } finally {
-      setIsLoading(false);
+      Alert.alert("Error", "Failed to save goals");
     }
   };
 
-  const saveApiKey = async () => {
-    if (!apiKey.trim()) {
-      Alert.alert("Error", "Please enter a valid API key");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await storageService.saveGeminiApiKey(apiKey.trim());
-      Alert.alert("Success", "API key saved successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Failed to save API key");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const clearAllData = () => {
+  const handleClearData = () => {
     Alert.alert(
       "Clear All Data",
-      "This will permanently delete all your food entries, profile, and settings. This action cannot be undone.",
+      "Are you sure you want to delete all your food entries and settings? This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete All",
+          text: "Delete",
           style: "destructive",
           onPress: async () => {
-            try {
-              await storageService.clearAllData();
-              setUserProfile(null);
-              setApiKey("");
-              Alert.alert("Success", "All data has been cleared");
-            } catch (error) {
-              Alert.alert("Error", "Failed to clear data");
-            }
+            await storageService.clearAllData();
+            loadSettings(); // Reload defaults
+            Alert.alert("Success", "All data has been cleared");
           },
         },
       ]
     );
   };
 
-  const createDefaultProfile = () => {
-    const newProfile: UserProfile = {
-      name: "",
-      age: undefined,
-      weight: undefined,
-      height: undefined,
-      activityLevel: "moderate",
-      dailyCalorieGoal: 2000,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setUserProfile(newProfile);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
-          <Text style={styles.headerSubtitle}>
-            Customize your food tracking experience
-          </Text>
+          <Text style={styles.title}>Settings</Text>
         </View>
 
-        {/* User Profile Section */}
+        {/* Profile Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="person" size={24} color="#10B981" />
-            <Text style={styles.sectionTitle}>User Profile</Text>
+            <Text style={styles.sectionTitle}>Profile</Text>
+            <TouchableOpacity
+              onPress={() => {
+                if (isEditingProfile) saveProfile();
+                else setIsEditingProfile(true);
+              }}>
+              <Text style={styles.editButton}>
+                {isEditingProfile ? "Save" : "Edit"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {userProfile ? (
-            <View style={styles.profileForm}>
+          {tempProfile && (
+            <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={userProfile.name}
-                  onChangeText={(text) =>
-                    setUserProfile({ ...userProfile, name: text })
-                  }
-                  placeholder="Enter your name"
-                />
-              </View>
-
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.inputLabel}>Age</Text>
+                <Text style={styles.label}>Name</Text>
+                {isEditingProfile ? (
                   <TextInput
-                    style={styles.textInput}
-                    value={userProfile.age?.toString() || ""}
+                    style={styles.input}
+                    value={tempProfile.name}
                     onChangeText={(text) =>
-                      setUserProfile({
-                        ...userProfile,
-                        age: text ? parseInt(text) : undefined,
-                      })
+                      setTempProfile({ ...tempProfile, name: text })
                     }
-                    placeholder="Age"
-                    keyboardType="numeric"
+                    placeholder="Your Name"
                   />
-                </View>
+                ) : (
+                  <Text style={styles.value}>
+                    {userProfile?.name || "Not set"}
+                  </Text>
+                )}
+              </View>
 
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.inputLabel}>Weight (kg)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={userProfile.weight?.toString() || ""}
-                    onChangeText={(text) =>
-                      setUserProfile({
-                        ...userProfile,
-                        weight: text ? parseFloat(text) : undefined,
-                      })
-                    }
-                    placeholder="Weight"
-                    keyboardType="numeric"
-                  />
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                  <Text style={styles.label}>Height (cm)</Text>
+                  {isEditingProfile ? (
+                    <TextInput
+                      style={styles.input}
+                      value={tempProfile.height.toString()}
+                      onChangeText={(text) =>
+                        setTempProfile({
+                          ...tempProfile,
+                          height: parseInt(text) || 0,
+                        })
+                      }
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{userProfile?.height} cm</Text>
+                  )}
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Weight (kg)</Text>
+                  {isEditingProfile ? (
+                    <TextInput
+                      style={styles.input}
+                      value={tempProfile.weight.toString()}
+                      onChangeText={(text) =>
+                        setTempProfile({
+                          ...tempProfile,
+                          weight: parseInt(text) || 0,
+                        })
+                      }
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{userProfile?.weight} kg</Text>
+                  )}
                 </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Height (cm)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={userProfile.height?.toString() || ""}
-                  onChangeText={(text) =>
-                    setUserProfile({
-                      ...userProfile,
-                      height: text ? parseFloat(text) : undefined,
-                    })
-                  }
-                  placeholder="Height in centimeters"
-                  keyboardType="numeric"
-                />
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                  <Text style={styles.label}>Age</Text>
+                  {isEditingProfile ? (
+                    <TextInput
+                      style={styles.input}
+                      value={tempProfile.age.toString()}
+                      onChangeText={(text) =>
+                        setTempProfile({
+                          ...tempProfile,
+                          age: parseInt(text) || 0,
+                        })
+                      }
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{userProfile?.age}</Text>
+                  )}
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Gender</Text>
+                  {isEditingProfile ? (
+                    <View style={styles.pickerContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          tempProfile.gender === "male" &&
+                            styles.pickerSelected,
+                        ]}
+                        onPress={() =>
+                          setTempProfile({ ...tempProfile, gender: "male" })
+                        }>
+                        <Text
+                          style={[
+                            styles.pickerText,
+                            tempProfile.gender === "male" &&
+                              styles.pickerTextSelected,
+                          ]}>
+                          M
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          tempProfile.gender === "female" &&
+                            styles.pickerSelected,
+                        ]}
+                        onPress={() =>
+                          setTempProfile({ ...tempProfile, gender: "female" })
+                        }>
+                        <Text
+                          style={[
+                            styles.pickerText,
+                            tempProfile.gender === "female" &&
+                              styles.pickerTextSelected,
+                          ]}>
+                          F
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={styles.value}>
+                      {userProfile?.gender === "male" ? "Male" : "Female"}
+                    </Text>
+                  )}
+                </View>
               </View>
-
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={saveUserProfile}>
-                <LinearGradient
-                  colors={["#10B981", "#059669"]}
-                  style={styles.saveButtonGradient}>
-                  <Ionicons name="save" size={20} color="#ffffff" />
-                  <Text style={styles.saveButtonText}>Save Profile</Text>
-                </LinearGradient>
-              </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.createProfileButton}
-              onPress={createDefaultProfile}>
-              <Text style={styles.createProfileText}>Create Profile</Text>
-              <Ionicons name="chevron-forward" size={20} color="#10B981" />
-            </TouchableOpacity>
           )}
         </View>
 
         {/* Daily Goals Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="target" size={24} color="#3B82F6" />
             <Text style={styles.sectionTitle}>Daily Goals</Text>
-          </View>
-
-          <View style={styles.goalsForm}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Daily Calories</Text>
-              <TextInput
-                style={styles.textInput}
-                value={dailyGoals.calories.toString()}
-                onChangeText={(text) =>
-                  setDailyGoals({
-                    ...dailyGoals,
-                    calories: parseInt(text) || 0,
-                  })
-                }
-                placeholder="2000"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.inputLabel}>Protein (g)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={dailyGoals.protein.toString()}
-                  onChangeText={(text) =>
-                    setDailyGoals({
-                      ...dailyGoals,
-                      protein: parseInt(text) || 0,
-                    })
-                  }
-                  placeholder="150"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.inputLabel}>Carbs (g)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={dailyGoals.carbs.toString()}
-                  onChangeText={(text) =>
-                    setDailyGoals({
-                      ...dailyGoals,
-                      carbs: parseInt(text) || 0,
-                    })
-                  }
-                  placeholder="250"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputRow}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.inputLabel}>Fat (g)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={dailyGoals.fat.toString()}
-                  onChangeText={(text) =>
-                    setDailyGoals({
-                      ...dailyGoals,
-                      fat: parseInt(text) || 0,
-                    })
-                  }
-                  placeholder="65"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.inputLabel}>Fiber (g)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={dailyGoals.fiber.toString()}
-                  onChangeText={(text) =>
-                    setDailyGoals({
-                      ...dailyGoals,
-                      fiber: parseInt(text) || 0,
-                    })
-                  }
-                  placeholder="25"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={styles.saveButton}
-              onPress={saveDailyGoals}>
-              <LinearGradient
-                colors={["#3B82F6", "#2563EB"]}
-                style={styles.saveButtonGradient}>
-                <Ionicons name="save" size={20} color="#ffffff" />
-                <Text style={styles.saveButtonText}>Save Goals</Text>
-              </LinearGradient>
+              onPress={() => {
+                if (isEditingGoals) saveGoals();
+                else setIsEditingGoals(true);
+              }}>
+              <Text style={styles.editButton}>
+                {isEditingGoals ? "Save" : "Edit"}
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* API Configuration Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="key" size={24} color="#F97316" />
-            <Text style={styles.sectionTitle}>API Configuration</Text>
-          </View>
-
-          <View style={styles.apiForm}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Gemini API Key</Text>
-              <View style={styles.apiKeyContainer}>
+          <View style={styles.goalsContainer}>
+            <View style={styles.goalItem}>
+              <Text style={styles.goalLabel}>Calories</Text>
+              {isEditingGoals ? (
                 <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  value={apiKey}
-                  onChangeText={setApiKey}
-                  placeholder="Enter your Gemini API key"
-                  secureTextEntry={!showApiKey}
+                  style={styles.goalInput}
+                  value={tempGoals.calories.toString()}
+                  onChangeText={(text) =>
+                    setTempGoals({
+                      ...tempGoals,
+                      calories: parseInt(text) || 0,
+                    })
+                  }
+                  keyboardType="numeric"
                 />
-                <TouchableOpacity
-                  style={styles.toggleButton}
-                  onPress={() => setShowApiKey(!showApiKey)}>
-                  <Text style={styles.toggleButtonText}>
-                    {showApiKey ? "Hide" : "Show"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              ) : (
+                <Text style={styles.goalValue}>{dailyGoals.calories}</Text>
+              )}
+              <Text style={styles.goalUnit}>kcal</Text>
             </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={saveApiKey}>
-              <LinearGradient
-                colors={["#F97316", "#EA580C"]}
-                style={styles.saveButtonGradient}>
-                <Ionicons name="save" size={20} color="#ffffff" />
-                <Text style={styles.saveButtonText}>Save API Key</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <View style={styles.divider} />
+
+            <View style={styles.macrosRow}>
+              <View style={styles.macroItem}>
+                <Text style={styles.macroLabel}>Protein</Text>
+                {isEditingGoals ? (
+                  <TextInput
+                    style={styles.macroInput}
+                    value={tempGoals.protein.toString()}
+                    onChangeText={(text) =>
+                      setTempGoals({
+                        ...tempGoals,
+                        protein: parseInt(text) || 0,
+                      })
+                    }
+                    keyboardType="numeric"
+                  />
+                ) : (
+                  <Text style={styles.macroValue}>{dailyGoals.protein}g</Text>
+                )}
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroLabel}>Carbs</Text>
+                {isEditingGoals ? (
+                  <TextInput
+                    style={styles.macroInput}
+                    value={tempGoals.carbs.toString()}
+                    onChangeText={(text) =>
+                      setTempGoals({
+                        ...tempGoals,
+                        carbs: parseInt(text) || 0,
+                      })
+                    }
+                    keyboardType="numeric"
+                  />
+                ) : (
+                  <Text style={styles.macroValue}>{dailyGoals.carbs}g</Text>
+                )}
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroLabel}>Fat</Text>
+                {isEditingGoals ? (
+                  <TextInput
+                    style={styles.macroInput}
+                    value={tempGoals.fat.toString()}
+                    onChangeText={(text) =>
+                      setTempGoals({ ...tempGoals, fat: parseInt(text) || 0 })
+                    }
+                    keyboardType="numeric"
+                  />
+                ) : (
+                  <Text style={styles.macroValue}>{dailyGoals.fat}g</Text>
+                )}
+              </View>
+            </View>
           </View>
         </View>
 
         {/* About Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="information-circle" size={24} color="#6B7280" />
-            <Text style={styles.sectionTitle}>About</Text>
-          </View>
-
+          <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.aboutContent}>
             <Text style={styles.aboutText}>MacrosAI Food Log App v1.0.0</Text>
             <Text style={styles.aboutDescription}>
@@ -402,19 +376,28 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Sign Out Button */}
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Ionicons name="log-out-outline" size={22} color="#ef4444" />
+          <Text style={styles.signOutButtonText}>Sign Out</Text>
+        </TouchableOpacity>
+
         {/* Danger Zone */}
         <View style={styles.dangerSection}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="trash" size={24} color="#EF4444" />
-            <Text style={[styles.sectionTitle, { color: "#EF4444" }]}>
+            <Text style={[styles.sectionTitle, { color: "#ef4444" }]}>
               Danger Zone
             </Text>
           </View>
-
-          <TouchableOpacity style={styles.dangerButton} onPress={clearAllData}>
+          <TouchableOpacity
+            style={styles.dangerButton}
+            onPress={handleClearData}>
+            <Ionicons name="trash-outline" size={20} color="#ef4444" />
             <Text style={styles.dangerButtonText}>Clear All Data</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -427,22 +410,17 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 20,
   },
-  headerTitle: {
+  title: {
     fontSize: 28,
     fontWeight: "700",
     color: "#1f2937",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: "#6b7280",
   },
   section: {
     backgroundColor: "#ffffff",
     marginHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 20,
     borderRadius: 16,
     padding: 20,
     shadowColor: "#000",
@@ -453,100 +431,147 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
-    marginLeft: 12,
   },
-  profileForm: {
+  editButton: {
+    color: "#10B981",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  form: {
     gap: 16,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  inputRow: {
+  row: {
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "space-between",
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
+  label: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 6,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 16,
+  value: {
     fontSize: 16,
     color: "#1f2937",
-    backgroundColor: "#ffffff",
+    fontWeight: "500",
+    paddingVertical: 8,
   },
-  createProfileButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  createProfileText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#10B981",
-  },
-  goalsForm: {
-    gap: 16,
-  },
-  saveButton: {
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  saveButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-  },
-  apiForm: {
-    gap: 16,
-  },
-  apiKeyContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  toggleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  input: {
     backgroundColor: "#f3f4f6",
     borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#1f2937",
   },
-  toggleButtonText: {
+  pickerContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    padding: 4,
+  },
+  pickerOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  pickerSelected: {
+    backgroundColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pickerText: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#6b7280",
+    fontWeight: "500",
+  },
+  pickerTextSelected: {
+    color: "#10B981",
+    fontWeight: "600",
+  },
+  goalsContainer: {
+    gap: 16,
+  },
+  goalItem: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "center",
+  },
+  goalLabel: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginRight: 8,
+  },
+  goalValue: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#1f2937",
+  },
+  goalInput: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#1f2937",
+    borderBottomWidth: 1,
+    borderBottomColor: "#10B981",
+    minWidth: 80,
+    textAlign: "center",
+  },
+  goalUnit: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginLeft: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#e5e7eb",
+    marginVertical: 8,
+  },
+  macrosRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  macroItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  macroLabel: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  macroValue: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  macroInput: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1f2937",
+    borderBottomWidth: 1,
+    borderBottomColor: "#10B981",
+    minWidth: 40,
+    textAlign: "center",
   },
   aboutContent: {
     alignItems: "center",
+    paddingVertical: 8,
   },
   aboutText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1f2937",
     marginBottom: 8,
@@ -557,26 +582,48 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
-  dangerSection: {
-    backgroundColor: "#ffffff",
-    marginHorizontal: 20,
-    marginBottom: 32,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#fecaca",
-  },
-  dangerButton: {
-    backgroundColor: "#fef2f2",
-    borderWidth: 1,
-    borderColor: "#fecaca",
-    borderRadius: 12,
-    paddingVertical: 16,
+  signOutButton: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  dangerButtonText: {
+  signOutButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#ef4444",
+  },
+  dangerSection: {
+    backgroundColor: "#ffffff",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#fee2e2",
+  },
+  dangerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+    gap: 8,
+  },
+  dangerButtonText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

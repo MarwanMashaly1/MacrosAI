@@ -1,8 +1,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { storageService } from "./storageService";
 
-// Initialize Gemini AI
-let genAI: GoogleGenerativeAI | null = null;
+// Initialize the API with the key from .env
+const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+
+// Add detailed debugging
+console.log("=== GEMINI SERVICE DEBUG ===");
+console.log("API_KEY exists:", !!API_KEY);
+console.log("API_KEY length:", API_KEY?.length || 0);
+console.log("API_KEY first 5 chars:", API_KEY?.substring(0, 5) || "NONE");
+console.log("===========================");
+
+if (!API_KEY) {
+  console.error("CRITICAL: EXPO_PUBLIC_GEMINI_API_KEY is not defined in .env");
+  console.error(
+    "Make sure you have a .env file with EXPO_PUBLIC_GEMINI_API_KEY=your_key"
+  );
+}
+
+const genAI = new GoogleGenerativeAI(API_KEY || "");
 
 export interface FoodItem {
   name: string;
@@ -19,7 +34,7 @@ export interface FoodItem {
 
 export interface IdentifiedItem {
   name: string;
-  quantity: string; // Changed from number to string
+  quantity: string | number;
   estimated_size: string;
   confidence: number;
 }
@@ -45,15 +60,6 @@ export interface NutritionAnalysis {
 
 export class GeminiService {
   private async getModel() {
-    const apiKey = await storageService.getGeminiApiKey();
-    if (!apiKey) {
-      throw new Error("Gemini API key not found. Please set it in Settings.");
-    }
-
-    if (!genAI) {
-      genAI = new GoogleGenerativeAI(apiKey);
-    }
-
     return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   }
 
@@ -111,7 +117,7 @@ export class GeminiService {
         items: [
           {
             name: "Unknown Food Item",
-            quantity: "1 serving", // Changed from number to string
+            quantity: "1 serving",
             estimated_size: "medium",
             confidence: 50,
           },
@@ -283,7 +289,6 @@ export class GeminiService {
       const response = await result.response;
       const text = response.text();
 
-      // Parse the JSON response
       const analysisData = JSON.parse(text.replace(/```json\n?|\n?```/g, ""));
 
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
@@ -295,7 +300,6 @@ export class GeminiService {
     } catch (error) {
       console.error("Gemini API Error:", error);
 
-      // Fallback response if API fails
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
 
       return {
@@ -334,7 +338,6 @@ export class GeminiService {
     return analyses;
   }
 
-  // Get nutrition trends over time
   async getNutritionTrends(analyses: NutritionAnalysis[], days: number = 7) {
     const totalCalories = analyses.reduce(
       (sum, analysis) => sum + analysis.totalCalories,

@@ -85,7 +85,7 @@ class StorageService {
   private readonly FOOD_ENTRIES_KEY = "food_entries";
   private readonly USER_PROFILE_KEY = "user_profile";
   private readonly DAILY_GOALS_KEY = "daily_goals";
-  private readonly GEMINI_API_KEY = "gemini_api_key";
+  private readonly GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
   // Food Entries Management
   async saveFoodEntry(entryData: Omit<FoodEntry, "id">): Promise<FoodEntry> {
@@ -225,25 +225,6 @@ class StorageService {
     }
   }
 
-  // API Key Management
-  async saveGeminiApiKey(apiKey: string): Promise<void> {
-    try {
-      await storage.setItemAsync(this.GEMINI_API_KEY, apiKey);
-    } catch (error) {
-      console.error("Error saving API key:", error);
-      throw error;
-    }
-  }
-
-  async getGeminiApiKey(): Promise<string | null> {
-    try {
-      return await storage.getItemAsync(this.GEMINI_API_KEY);
-    } catch (error) {
-      console.error("Error getting API key:", error);
-      return null;
-    }
-  }
-
   // Analytics and Statistics
   async getDailyStats(date: Date): Promise<{
     totalCalories: number;
@@ -358,3 +339,19 @@ class StorageService {
 }
 
 export const storageService = new StorageService();
+
+const USER_SESSION_KEY = "user_session_token";
+
+export const sessionStorageService = {
+  async saveSession(session: string): Promise<void> {
+    await SecureStore.setItemAsync(USER_SESSION_KEY, session);
+  },
+
+  async getSession(): Promise<string | null> {
+    return await SecureStore.getItemAsync(USER_SESSION_KEY);
+  },
+
+  async clearSession(): Promise<void> {
+    await SecureStore.deleteItemAsync(USER_SESSION_KEY);
+  },
+};

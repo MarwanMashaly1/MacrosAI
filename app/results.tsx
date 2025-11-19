@@ -175,7 +175,7 @@ export default function ResultsScreen() {
   };
 
   const goHome = () => {
-    router.replace("/(tabs)"); // Change from "/(tabs)/index" to "/(tabs)"
+    router.replace("/(tabs)"); // Ensures we go to the root of the tabs
   };
 
   if (loading) {

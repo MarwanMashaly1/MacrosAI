@@ -19,8 +19,6 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "@supabase/supabase-js": "^2.76.1",
-    "aws-amplify": "^6.0.0",
     "expo": "~54.0.0",
     "expo-blur": "15.0.7",
     "expo-camera": "~17.0.8",
@@ -28,7 +26,7 @@
     "expo-font": "14.0.9",
     "expo-haptics": "^15.0.7",
     "expo-image": "3.0.10",
-    "expo-image-picker": "17.0.8",
+    "expo-image-picker": "~17.0.8",
     "expo-linear-gradient": "15.0.7",
     "expo-linking": "8.0.8",
     "expo-router": "6.0.13",
@@ -50,8 +48,6 @@
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
-    "@aws-amplify/backend": "^1.18.0",
-    "@aws-amplify/backend-cli": "^1.8.0",
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.0",
     "aws-cdk-lib": "^2.216.0",
