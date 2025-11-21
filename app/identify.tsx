@@ -284,7 +284,11 @@ export default function IdentifyScreen() {
 
           {/* Food Image */}
           <View style={styles.imageContainer}>
-            <Image source={{ uri: imageUri }} style={styles.foodImage} />
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.foodImage}
+              resizeMode="cover"
+            />
             <View style={styles.imageOverlay}>
               <Text style={styles.imageLabel}>Your Meal</Text>
             </View>
