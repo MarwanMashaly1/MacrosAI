@@ -2,7 +2,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, View } from "react-native";
+import { Platform } from "react-native";
 
 // A helper component to render the icon and handle the focused state
 function TabBarIcon({
@@ -68,25 +68,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="camera"
         options={{
-          title: "", // Hide title for the center button
-          tabBarIcon: ({ focused }) => (
-            <View
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: "#10B981",
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: Platform.OS === "ios" ? 0 : 20,
-                shadowColor: "#10B981",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 5,
-              }}>
-              <Ionicons name="camera" size={30} color="white" />
-            </View>
+          title: "Camera",
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="camera" color={color} focused={focused} />
           ),
         }}
       />

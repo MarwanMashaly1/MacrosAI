@@ -131,18 +131,27 @@ export default function AddEntryManualScreen() {
         .filter(
           (item) => item.name.trim() !== "" && item.calories.trim() !== ""
         )
-        .map((item) => ({
-          name: item.name,
-          calories: parseFloat(item.calories) || 0,
-          weight: item.weight || "0g",
-          nutrients: {
-            protein: parseFloat(item.protein) || 0,
-            carbs: parseFloat(item.carbs) || 0,
-            fat: parseFloat(item.fat) || 0,
-            fiber: parseFloat(item.fiber) || 0,
-          },
-          confidence: 100, // Manual entries have 100% confidence
-        }));
+        .map((item) => {
+          const weightMatch = item.weight.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?$/);
+          return {
+            id: Math.random().toString(36).substring(2, 11),
+            name: item.name,
+            calories: parseFloat(item.calories) || 0,
+            weight: weightMatch ? parseFloat(weightMatch[1]) : 0,
+            unit: weightMatch ? (weightMatch[2] || "g") : "g",
+            nutrients: {
+              protein: parseFloat(item.protein) || 0,
+              carbs: parseFloat(item.carbs) || 0,
+              fat: parseFloat(item.fat) || 0,
+              fiber: parseFloat(item.fiber) || 0,
+            },
+            confidence: 100,
+            portion: {
+              amount: 1,
+              unit: "serving",
+            },
+          };
+        });
 
       // Calculate totals
       const totalCalories = processedFoodItems.reduce(
@@ -166,18 +175,19 @@ export default function AddEntryManualScreen() {
         0
       );
 
-      // Create entry
       const entry = {
         timestamp,
-        imageUri: imageUri || "", // Empty string if no image
+        imageUri: imageUri || "",
         analysis: {
           totalCalories,
-          totalProtein,
-          totalCarbs,
-          totalFat,
-          totalFiber,
           confidence: 100,
           foodItems: processedFoodItems,
+          nutritionSummary: {
+            protein: totalProtein,
+            carbs: totalCarbs,
+            fat: totalFat,
+            fiber: totalFiber,
+          },
         },
         mealType,
         notes: notes.trim() || undefined,

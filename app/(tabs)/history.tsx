@@ -217,7 +217,21 @@ export default function HistoryScreen() {
       onPress={() => navigateToResults(item.id)}
       activeOpacity={0.7}>
       <View style={styles.entryHeader}>
-        <Image source={{ uri: item.imageUri }} style={styles.entryImage} />
+        {item.imageUri ? (
+          <Image
+            key={`entry-image-${item.id}`}
+            source={{ uri: item.imageUri }}
+            style={styles.entryImage}
+            resizeMode="cover"
+            onError={(e) => {
+              console.log("Image load error:", e.nativeEvent.error);
+            }}
+          />
+        ) : (
+          <View style={[styles.entryImage, styles.entryImagePlaceholder]}>
+            <Ionicons name="restaurant" size={28} color="#9ca3af" />
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <View style={styles.entryTitleRow}>
             <Text style={styles.entryFood}>
@@ -623,6 +637,10 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     backgroundColor: "#f3f4f6",
+  },
+  entryImagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   entryFood: {
     fontSize: 18,

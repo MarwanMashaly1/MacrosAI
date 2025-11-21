@@ -25,6 +25,7 @@ export default function SettingsScreen() {
     protein: 150,
     carbs: 200,
     fat: 65,
+    fiber: 30,
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingGoals, setIsEditingGoals] = useState(false);

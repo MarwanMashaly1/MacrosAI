@@ -1,4 +1,5 @@
 import { geminiService, IdentifiedItem } from "@/services/geminiService";
+import { imageService } from "@/services/imageService";
 import { FoodItem } from "@/services/storageService";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,25 +20,32 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function IdentifyScreen() {
   const params = useLocalSearchParams<{
     imageUri: string;
-    base64: string;
     pastEntryTimestamp?: string;
   }>();
   const imageUri = params.imageUri as string;
-  const base64 = params.base64 as string;
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<IdentifiedItem[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [base64Data, setBase64Data] = useState<string>("");
+  const [loadingStep, setLoadingStep] = useState<string>("Preparing image...");
 
   useEffect(() => {
-    if (base64) {
+    if (imageUri) {
       identifyFood();
     }
-  }, [base64]);
+  }, [imageUri]);
 
   const identifyFood = async () => {
     setLoading(true);
     try {
+      // Step 1: Optimize and convert image
+      setLoadingStep("Optimizing image...");
+      const base64 = await imageService.prepareImageForAI(imageUri);
+      setBase64Data(base64); // Store for later use
+
+      // Step 2: Call AI
+      setLoadingStep("Analyzing your food with AI...");
       const result = await geminiService.identifyFood(base64);
       setItems(result.items);
     } catch (error) {
@@ -145,20 +153,16 @@ export default function IdentifyScreen() {
       return;
     }
 
-    // We now only use the local imageUri.
     const finalImageUri = imageUri;
 
     try {
+      setLoading(true);
+      setLoadingStep("Calculating nutrition information...");
+
       const analysisResult: {
         foodItems: FoodItem[];
         totalCalories: number;
         confidence: number;
-        macronutrients: {
-          protein: number;
-          carbs: number;
-          fat: number;
-          fiber: number;
-        };
         nutritionSummary: {
           protein: number;
           carbs: number;
@@ -169,12 +173,6 @@ export default function IdentifyScreen() {
         foodItems: [],
         totalCalories: 0,
         confidence: 0,
-        macronutrients: {
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0,
-        },
         nutritionSummary: {
           protein: 0,
           carbs: 0,
@@ -201,12 +199,12 @@ export default function IdentifyScreen() {
           );
 
           return {
-            id: Math.random().toString(36).substr(2, 9),
+            id: Math.random().toString(36).substring(2, 11),
             name: item.name,
             calories: item.calories,
             weight: weightInfo.value,
             unit: weightInfo.unit,
-            macronutrients: {
+            nutrients: {
               protein: item.nutrients?.protein || 0,
               carbs: item.nutrients?.carbs || 0,
               fat: item.nutrients?.fat || 0,
@@ -222,27 +220,26 @@ export default function IdentifyScreen() {
       );
 
       // Calculate total macros
-      const totalMacros = analysisResult.foodItems.reduce(
+      const nutritionSummary = analysisResult.foodItems.reduce(
         (sum, item) => ({
-          protein: sum.protein + (item.macronutrients?.protein || 0),
-          carbs: sum.carbs + (item.macronutrients?.carbs || 0),
-          fat: sum.fat + (item.macronutrients?.fat || 0),
-          fiber: sum.fiber + (item.macronutrients?.fiber || 0),
+          protein: sum.protein + (item.nutrients?.protein || 0),
+          carbs: sum.carbs + (item.nutrients?.carbs || 0),
+          fat: sum.fat + (item.nutrients?.fat || 0),
+          fiber: sum.fiber + (item.nutrients?.fiber || 0),
         }),
         { protein: 0, carbs: 0, fat: 0, fiber: 0 }
       );
 
-      // Create the analysis result object
       analysisResult.totalCalories = nutritionAnalysis.totalCalories;
       analysisResult.confidence = nutritionAnalysis.confidence;
-      analysisResult.macronutrients = totalMacros;
-      analysisResult.nutritionSummary = totalMacros;
+      analysisResult.nutritionSummary = nutritionSummary;
 
-      // Navigate to results WITHOUT saving (results screen will handle saving)
+      setLoadingStep("Preparing results...");
+
       router.replace({
         pathname: "/results",
         params: {
-          imageUri: finalImageUri, // <-- This now correctly uses the local URI
+          imageUri: finalImageUri,
           analysisResult: JSON.stringify(analysisResult),
           pastEntryTimestamp: params.pastEntryTimestamp || "",
         },
@@ -262,11 +259,7 @@ export default function IdentifyScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>
-            {items.length > 0
-              ? "Calculating nutrition..."
-              : "Analyzing your food..."}
-          </Text>
+          <Text style={styles.loadingText}>{loadingStep}</Text>
           <Text style={styles.loadingSubtext}>
             {items.length > 0
               ? "Getting detailed nutritional information"

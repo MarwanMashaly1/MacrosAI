@@ -86,12 +86,6 @@ export default function ResultsScreen() {
           totalCalories: analysisResult.totalCalories,
           confidence: analysisResult.confidence,
           foodItems: analysisResult.foodItems,
-          macronutrients: analysisResult.macronutrients || {
-            protein: 0,
-            carbs: 0,
-            fat: 0,
-            fiber: 0,
-          },
           nutritionSummary: analysisResult.nutritionSummary || {
             protein: 0,
             carbs: 0,
@@ -131,14 +125,19 @@ export default function ResultsScreen() {
         ? parseInt(params.pastEntryTimestamp)
         : Date.now();
 
+      // Save image permanently before saving entry
+      const { imageService } = await import("@/services/imageService");
+      const permanentImageUri = entry.imageUri
+        ? await imageService.saveImagePermanently(entry.imageUri)
+        : "";
+
       const entryData: Omit<FoodEntry, "id"> = {
         timestamp,
-        imageUri: entry.imageUri || "",
+        imageUri: permanentImageUri,
         analysis: {
           totalCalories: entry.analysis.totalCalories,
           confidence: entry.analysis.confidence,
           foodItems: entry.analysis.foodItems,
-          macronutrients: entry.analysis.macronutrients,
           nutritionSummary: entry.analysis.nutritionSummary,
         },
         mealType: selectedMealType,
@@ -208,13 +207,12 @@ export default function ResultsScreen() {
 
   const { analysis, imageUri, isManual } = entry;
   const { totalCalories, foodItems } = analysis;
-  const macronutrients = analysis.macronutrients ||
-    analysis.nutritionSummary || {
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      fiber: 0,
-    };
+  const nutritionSummary = analysis.nutritionSummary || {
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    fiber: 0,
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -289,25 +287,25 @@ export default function ResultsScreen() {
           <View style={styles.macrosGrid}>
             <View style={styles.macroItem}>
               <Text style={styles.macroValue}>
-                {Math.round(macronutrients.protein)}g
+                {Math.round(nutritionSummary.protein)}g
               </Text>
               <Text style={styles.macroLabel}>Protein</Text>
             </View>
             <View style={styles.macroItem}>
               <Text style={styles.macroValue}>
-                {Math.round(macronutrients.carbs)}g
+                {Math.round(nutritionSummary.carbs)}g
               </Text>
               <Text style={styles.macroLabel}>Carbs</Text>
             </View>
             <View style={styles.macroItem}>
               <Text style={styles.macroValue}>
-                {Math.round(macronutrients.fat)}g
+                {Math.round(nutritionSummary.fat)}g
               </Text>
               <Text style={styles.macroLabel}>Fat</Text>
             </View>
             <View style={styles.macroItem}>
               <Text style={styles.macroValue}>
-                {Math.round(macronutrients.fiber)}g
+                {Math.round(nutritionSummary.fiber)}g
               </Text>
               <Text style={styles.macroLabel}>Fiber</Text>
             </View>
@@ -337,30 +335,30 @@ export default function ResultsScreen() {
                 </Text>
               </View>
 
-              {item.macronutrients && (
+              {item.nutrients && (
                 <View style={styles.itemMacros}>
                   <View style={styles.itemMacro}>
                     <Text style={styles.itemMacroLabel}>Protein</Text>
                     <Text style={styles.itemMacroValue}>
-                      {Math.round(item.macronutrients.protein)}g
+                      {Math.round(item.nutrients.protein)}g
                     </Text>
                   </View>
                   <View style={styles.itemMacro}>
                     <Text style={styles.itemMacroLabel}>Carbs</Text>
                     <Text style={styles.itemMacroValue}>
-                      {Math.round(item.macronutrients.carbs)}g
+                      {Math.round(item.nutrients.carbs)}g
                     </Text>
                   </View>
                   <View style={styles.itemMacro}>
                     <Text style={styles.itemMacroLabel}>Fat</Text>
                     <Text style={styles.itemMacroValue}>
-                      {Math.round(item.macronutrients.fat)}g
+                      {Math.round(item.nutrients.fat)}g
                     </Text>
                   </View>
                   <View style={styles.itemMacro}>
                     <Text style={styles.itemMacroLabel}>Fiber</Text>
                     <Text style={styles.itemMacroValue}>
-                      {Math.round(item.macronutrients.fiber)}g
+                      {Math.round(item.nutrients.fiber)}g
                     </Text>
                   </View>
                 </View>

@@ -46,33 +46,40 @@ export default function CameraTab() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
-  // --- YOUR PROVEN takePicture FUNCTION ---
-  // Using the exact logic that worked for you, which avoids the lifecycle race condition.
+  // Optimized takePicture - no base64 conversion during capture for instant response
   const takePicture = async () => {
     if (analyzing || !cameraRef.current) return;
 
     try {
+      // Show loading immediately
+      setAnalyzing(true);
+
+      // Take photo WITHOUT base64 (much faster - no UI hang)
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-        base64: true,
+        quality: 0.6, // Reduced quality for faster processing and smaller file
+        base64: false, // Don't generate base64 here - it blocks UI
       });
 
+      // Close camera immediately for better UX
+      setShowCamera(false);
+
+      // Navigate with just the URI - base64 conversion happens in identify screen
       router.push({
         pathname: "/identify",
         params: {
           imageUri: photo.uri,
-          base64: photo.base64 || "",
           // Pass the past entry timestamp if it exists
           pastEntryTimestamp: pastEntryTimestamp?.toString() || "",
         },
       });
 
-      setShowCamera(false);
+      // Reset state
       setCapturedImage(null);
       setAnalyzing(false);
     } catch (error) {
       Alert.alert("Error", "Failed to take picture. Please try again.");
       console.error("Camera error:", error);
+      setShowCamera(false);
       setAnalyzing(false);
     }
   };
@@ -85,8 +92,8 @@ export default function CameraTab() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
-        base64: true,
+        quality: 0.6, // Reduced for faster processing
+        base64: false, // Skip base64 conversion for instant response
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -96,7 +103,6 @@ export default function CameraTab() {
           pathname: "/identify",
           params: {
             imageUri: asset.uri,
-            base64: asset.base64 || "",
             // Pass the past entry timestamp if it exists
             pastEntryTimestamp: pastEntryTimestamp?.toString() || "",
           },

@@ -23,7 +23,7 @@ export interface FoodItem {
   calories: number;
   weight: number;
   unit: string;
-  macronutrients: {
+  nutrients: {
     protein: number;
     carbs: number;
     fat: number;
@@ -44,13 +44,7 @@ export interface FoodEntry {
     totalCalories: number;
     confidence: number;
     foodItems: FoodItem[];
-    macronutrients?: {
-      protein: number;
-      carbs: number;
-      fat: number;
-      fiber: number;
-    };
-    nutritionSummary?: {
+    nutritionSummary: {
       protein: number;
       carbs: number;
       fat: number;
@@ -67,10 +61,12 @@ export interface UserProfile {
   age?: number;
   weight?: number;
   height?: number;
+  gender?: "male" | "female";
   activityLevel?: "sedentary" | "light" | "moderate" | "active" | "very_active";
   dailyCalorieGoal?: number;
   createdAt: number;
   updatedAt: number;
+  goal?: "maintain" | "lose" | "gain";
 }
 
 export interface DailyGoals {
@@ -85,30 +81,28 @@ class StorageService {
   private readonly FOOD_ENTRIES_KEY = "food_entries";
   private readonly USER_PROFILE_KEY = "user_profile";
   private readonly DAILY_GOALS_KEY = "daily_goals";
-  private readonly GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
   // Food Entries Management
   async saveFoodEntry(entryData: Omit<FoodEntry, "id">): Promise<FoodEntry> {
     try {
       // Compute totals from foodItems if not provided
-      const computedMacros = entryData.analysis.foodItems.reduce(
+      const computedNutritionSummary = entryData.analysis.foodItems.reduce(
         (sum, item) => ({
-          protein: sum.protein + (item.macronutrients?.protein || 0),
-          carbs: sum.carbs + (item.macronutrients?.carbs || 0),
-          fat: sum.fat + (item.macronutrients?.fat || 0),
-          fiber: sum.fiber + (item.macronutrients?.fiber || 0),
+          protein: sum.protein + (item.nutrients?.protein || 0),
+          carbs: sum.carbs + (item.nutrients?.carbs || 0),
+          fat: sum.fat + (item.nutrients?.fat || 0),
+          fiber: sum.fiber + (item.nutrients?.fiber || 0),
         }),
         { protein: 0, carbs: 0, fat: 0, fiber: 0 }
       );
 
       const entry: FoodEntry = {
         ...entryData,
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substring(2, 11),
         analysis: {
           ...entryData.analysis,
-          macronutrients: entryData.analysis.macronutrients || computedMacros,
           nutritionSummary:
-            entryData.analysis.nutritionSummary || computedMacros,
+            entryData.analysis.nutritionSummary || computedNutritionSummary,
         },
       };
 
@@ -252,13 +246,12 @@ class StorageService {
 
     const nutritionBreakdown = entries.reduce(
       (sum, entry) => {
-        const nutrition = entry.analysis?.nutritionSummary ||
-          entry.analysis?.macronutrients || {
-            protein: 0,
-            carbs: 0,
-            fat: 0,
-            fiber: 0,
-          };
+        const nutrition = entry.analysis?.nutritionSummary || {
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+        };
 
         return {
           protein: sum.protein + (nutrition.protein || 0),

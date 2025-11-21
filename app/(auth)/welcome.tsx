@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
   },
   actionsContainer: {
-    marginTop: "auto",
+    marginTop: 40,
     marginBottom: 20,
     gap: 12,
   },
