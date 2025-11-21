@@ -3,15 +3,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize the API with the key from .env
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
-// Add detailed debugging
-console.log("=== GEMINI SERVICE DEBUG ===");
-console.log("API_KEY exists:", !!API_KEY);
-console.log("API_KEY length:", API_KEY?.length || 0);
-console.log("API_KEY first 5 chars:", API_KEY?.substring(0, 5) || "NONE");
-console.log("fetch available:", typeof fetch !== "undefined");
-console.log("global.fetch available:", typeof global.fetch !== "undefined");
-console.log("===========================");
-
 if (!API_KEY) {
   console.error("CRITICAL: EXPO_PUBLIC_GEMINI_API_KEY is not defined in .env");
   console.error(
@@ -68,9 +59,7 @@ export class GeminiService {
 
   async identifyFood(imageUri: string): Promise<IdentificationResult> {
     try {
-      console.log("🔍 Starting food identification...");
       const model = await this.getModel();
-      console.log("✅ Model loaded successfully");
 
       const prompt = `
         Analyze this food image and identify all visible food items. Please respond with a JSON object containing:
@@ -97,7 +86,6 @@ export class GeminiService {
         Only respond with the JSON object, no additional text.
       `;
 
-      console.log("📤 Sending request to Gemini API...");
       const result = await model.generateContent([
         prompt,
         {
@@ -108,22 +96,16 @@ export class GeminiService {
         },
       ]);
 
-      console.log("📥 Received response from Gemini API");
       const response = await result.response;
       const text = response.text();
-      console.log("📝 Response text length:", text.length);
 
       const identificationData = JSON.parse(
         text.replace(/```json\n?|\n?```/g, "")
       );
 
-      console.log("✅ Successfully identified food items:", identificationData.items.length);
       return identificationData;
     } catch (error) {
-      console.error("❌ Gemini API Error in identifyFood:");
-      console.error("Error type:", error?.constructor?.name);
-      console.error("Error message:", error?.message);
-      console.error("Full error:", JSON.stringify(error, null, 2));
+      console.error("Error message:", error);
 
       return {
         items: [
@@ -145,7 +127,6 @@ export class GeminiService {
     const startTime = Date.now();
 
     try {
-      console.log("🔢 Starting nutrition calculation for", items.length, "items");
       const model = await this.getModel();
 
       const itemsText = items
@@ -197,10 +178,8 @@ export class GeminiService {
         Only respond with the JSON object, no additional text.
       `;
 
-      console.log("📤 Sending nutrition calculation request...");
       const result = await model.generateContent([prompt]);
 
-      console.log("📥 Received nutrition response");
       const response = await result.response;
       const text = response.text();
 
@@ -208,15 +187,13 @@ export class GeminiService {
 
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
 
-      console.log("✅ Nutrition calculation successful. Processing time:", processingTime);
       return {
         ...analysisData,
         processingTime,
       };
     } catch (error) {
       console.error("❌ Gemini API Error in calculateNutrition:");
-      console.error("Error message:", error?.message);
-      console.error("Full error:", error);
+      console.error("Error message:", error);
 
       const processingTime = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
 
