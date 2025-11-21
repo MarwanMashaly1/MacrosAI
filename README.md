@@ -1,50 +1,96 @@
-# Welcome to your Expo app 👋
+# MacrosAI Setup Guide
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Prerequisites
 
-## Get started
+- Node.js (v16 or higher)
+- npm or yarn
+- Expo CLI
+- Google Gemini API key
 
-1. Install dependencies
+## Installation
 
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd MacrosAI
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
+3. **Configure Environment Variables**
 
+   Create a `.env` file in the project root:
    ```bash
-   npx expo start
+   cp .env.example .env
    ```
 
-In the output, you'll find options to open the app in a
+   Edit `.env` and add your Google Gemini API key:
+   ```
+   EXPO_PUBLIC_GEMINI_API_KEY=your_actual_api_key_here
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+   **Get your API key:**
+   - Visit https://aistudio.google.com/app/apikey
+   - Sign in with your Google account
+   - Create a new API key
+   - Copy and paste it into your `.env` file
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+4. **Start the development server**
+   ```bash
+   npm start
+   ```
 
-## Get a fresh project
+   Or run directly on a platform:
+   ```bash
+   npm run ios      # iOS simulator
+   npm run android  # Android emulator
+   npm run web      # Web browser
+   ```
 
-When you're ready, run:
+## Important Notes
 
-```bash
-npm run reset-project
+### Environment Variables in Expo
+
+- Expo requires environment variables to be prefixed with `EXPO_PUBLIC_` to be accessible in the app
+- The `.env` file is automatically loaded by Expo SDK 54+
+- **You must restart the development server** after changing `.env` values
+- Never commit your `.env` file (it's already in `.gitignore`)
+
+### Troubleshooting
+
+**API key not working?**
+1. Verify the `.env` file exists in the project root
+2. Ensure the variable is named `EXPO_PUBLIC_GEMINI_API_KEY` (not just `GEMINI_API_KEY`)
+3. Restart the Expo development server completely (`Ctrl+C` then `npm start`)
+4. Clear the cache: `npx expo start --clear`
+
+See the AWS documentation for detailed setup instructions.
+
+## Development
+
+- `npm start` - Start Expo development server
+- `npm run ios` - Run on iOS simulator
+- `npm run android` - Run on Android emulator
+- `npm run web` - Run in web browser
+- `npm run lint` - Run ESLint
+
+## Project Structure
+
 ```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+MacrosAI/
+├── app/                    # Expo Router pages
+│   ├── (auth)/            # Authentication screens
+│   ├── (tabs)/            # Main app tabs
+│   └── _layout.tsx        # Root layout
+├── services/              # Business logic
+│   ├── geminiService.ts   # AI integration
+│   ├── storageService.ts  # Local storage
+│   └── api.ts            # Backend API calls
+├── context/              # React Context providers
+├── components/           # Reusable components
+├── .env                  # Environment variables (create this!)
+└── .env.example          # Environment template
+```
